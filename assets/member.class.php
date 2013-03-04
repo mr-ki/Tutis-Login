@@ -1,23 +1,27 @@
 <?php
 /*
- * Member Class
- * 
- * The main hub of the Tutis Login script
- * Stores almost all the functions
- */
+Name:          Member Login
+Author:        FireDart
+License:       Creative Commons Attribution-ShareAlike 3.0 Unported License
+                - http://creativecommons.org/licenses/by-sa/3.0/
+*/
+/* Member Class */
 class member {
-	/*
-	 * Member Construct
-	 * 
-	 * Sets some basic settings for extra security
-	 * Starts the session
-	 * Checks last know ip to prevent hijacking
-	 */
-	public function __construct() {
+	/* Simple Variables */
+	private $remember = true;
+	private $captcha = true;
+	private $email_master = null;
+	private $email_welcome = true;
+	private $email_verification = true;
+	private $bcryptRounds = 12;
+	/* Needed Member Stuff */
+	function __construct() {
 		/* Prevent JavaScript from reaidng Session cookies */
 		ini_set('session.cookie_httponly', true);
+
 		/* Start Session */
 		session_start();
+
 		/* Check if last session is fromt he same pc */
 		if(!isset($_SESSION['last_ip'])) {
 			$_SESSION['last_ip'] = $_SERVER['REMOTE_ADDR'];
@@ -29,35 +33,20 @@ class member {
 			session_unset();
 			session_destroy();
 		}
-		
-		/* Include Notice & Mailer Class */
-		require_once("notice.class.php");
-		require_once("mailer.class.php");
 	}
-	
-	
 	/*
-	 * Basic functions
-	 * 
-	 * This area contains basic functions that are very usfull
-	 */
-	/*
-	 * CurrentPath functions
-	 *
-	 * Returns the current path of the url
-	 */
-	public function currentPath() {
+	User Authentication
+	*/
+	/* Current Path */
+	public function currentPath($type = 0) {
 		$currentPath  = 'http';
 		if(isset($_SERVER["HTTPS"]) == "on") {$currentPage .= "s";}
 		$currentPath .= "://";
 		$currentPath .= dirname($_SERVER["SERVER_NAME"] . $_SERVER["REQUEST_URI"]) . '/';
 		return $currentPath;
 	}
-	/*
-	 * CurrentPage functions
-	 *
-	 * Returns the current page of the url
-	 */
+
+	/* Current Page */
 	public function currentPage() {
 		/* Current Page */
 		$currentPage  = 'http';
@@ -66,18 +55,8 @@ class member {
 		$currentPage .= $_SERVER["SERVER_NAME"] . $_SERVER["REQUEST_URI"];
 		return $currentPage;
 	}
-	
-	
-	/*
-	 * User Authentication
-	 *
-	 * This section contains all the user authentication
-	 */
-	/*
-	 * genSalt
-	 *
-	 * This generates a random salt to be used in a password hasing
-	 */
+
+	/* Gen Salt */
 	public function genSalt() {
 		/* openssl_random_pseudo_bytes(16) Fallback */
 		$seed = '';
@@ -89,78 +68,35 @@ class member {
 		/* Return */
 		return $salt;
 	}
-	/*
-	 * genHash
-	 *
-	 * This creates a hash of the selected password and
-	 * uses a unique salt provided by genSalt function
-	 *
-	 * @param string $salt The random salt for the password
-	 * @param string $password The provided password
-	 */
+
+	/* Gen Password */
 	public function genHash($salt, $password) {
-		/* If Sha512 */
-		if(Config::read('hash') == 'sha512') {
-			/* Hash Password with sha256 */
-			$hash   = $salt . $password;
-			/* ReHash the password */
-			for($i = 0; $i < 100000; $i ++) {
-				$hash = hash('sha512', $hash);
-			}
-			/* Salt + hash = smart */
-			$hash   = $salt . $hash;
-		/* Else Bcrypt by default */
-		} else {
-			/* Explain '$2y$' . $this->rounds . '$' */
-				/* 2a selects bcrypt algorithm */
-				/* $this->rounds is the workload factor */
-			/* GenHash */
-			$hash = crypt($password, '$2y$' . Config::read('bcryptRounds') . '$' . $this->genSalt());
-		}
+		/* Explain '$2y$' . $this->rounds . '$' */
+			/* 2a selects bcrypt algorithm */
+			/* $this->rounds is the workload factor */
+		/* GenHash */
+		$hash = crypt($password, '$2y$' . $this->bcryptRounds . '$' . $this->genSalt());
 		/* Return */
 		return $hash;
 	}
-	/*
-	 * verify
-	 *
-	 * This checks if the suppled password is equal
-	 * to the current stored hashed password
-	 *
-	 * @param string $password The provided password
-	 * @param string $existingHash The current stored hashed password
-	 */
+
+	/* Verify Password */
 	public function verify($password, $existingHash) {
-		/* If Sha512 */
-		if(Config::read('hash') == 'sha512') {
-			$salt = substr($existingHash, 0, 22);
-			$hash = $this->genHash($salt, $password);
-		/* Else Bcrypt by default */
-		} else {
-			/* Hash new password with old hash */
-			$hash = crypt($password, $existingHash);
-			/* Do Hashs match? */
-		}
-		
+		/* Hash new password with old hash */
+		$hash = crypt($password, $existingHash);
+		/* Do Hashs match? */
 		if($hash === $existingHash) {
 			return true;
 		} else {
 			return false;
 		}
 	}
-	/*
-	 * login
-	 *
-	 * Returns a login form that user can login with
-	 * It then checks to see if the login is successful
-	 *
-	 * If so create session and/or remember cookie
-	 */
+
+	/* Login */
 	public function login() {
 		global $database;
-		/* Create new instance of notice class */
-		$notice = new notice;
 		/* User Rember me feature? */
-		if(Config::read('remember') == true) {
+		if($this->remember == true) {
 			$remember = '<div class="clearer"> </div><p class="remember_me"><input type="checkbox" name="remember_me" value="1" /> Remember me?</p>';
 		} else {
 			$remember = "";
@@ -178,7 +114,9 @@ class member {
 	</label>
 	' . $remember . '
 	<input name="login" type="submit" value="Login" />
-</form>';
+</form>
+<p class="options group"><a href="member.php?action=register">Register</a> &bull; <a href="member.php?action=recover-password">Recover Password</a></p>
+		';
 		/* Check if Login is set */
 		if(isset($_POST['login'])) {
 			/* Set username and password */
@@ -195,9 +133,11 @@ class member {
 			/* Is both Username and Password set? */
 			if($username && $password) {
 				/* Get User data */
-				$user = $database->query('SELECT id, password FROM users WHERE username = :username', array(':username' => $username), 'FETCH_OBJ');
+				$database->query('SELECT id, password FROM users WHERE username = :username', array(':username' => $username));
 				/* Check if user exist */
-				if($database->statement->rowCount() >= '1') {
+				if($database->count() >= '1') {
+					/* Get the users info */
+					$user = $database->statement->fetch(PDO::FETCH_OBJ);
 					/* Check hash */
 					if($this->verify($password, $user->password) == true) {
 						/* If correct create session */
@@ -209,148 +149,122 @@ class member {
 						/* Log */
 						$this->userLogger($user->id, 0);
 						/* Report Status */
-						$notice->add('success', 'Authentication Success');
+						$message = "Authentication Success";
+						$message_type = 2;
 						$return_form = 0;
 						/* Redirect */
-						if(isset($_COOKIE['redirect'])) {
-							$redirect = $_COOKIE['redirect'];
-						} else {
-							$redirect = '';
-						}
-						echo '<meta http-equiv="refresh" content="2;url=' . $redirect . '" />';
+						echo '<meta http-equiv="refresh" content="2;url=index.php" />';
 					} else {
 						/* Report Status */
-						$notice->add('error', 'Authentication Failed');
+						$message = "Authentication Failed";
+						$message_type = 1;
 						$return_form = 1;
 					}
 				} else {
 					/* Report Status */
-					$notice->add('error', 'Authentication Failed');
+					$message = "Authentication Failed";
+					$message_type = 1;
 					$return_form = 1;
 				}
 			} else {
 				/* Report Status */
-				$notice->add('error', 'Authentication Failed');
+				$message = "Authentication Failed";
+				$message_type = 1;
 				$return_form = 1;
 			}
 		} else {
 			/* Report Status */
-			$notice->add('info', 'Please authenticate your self');
+			$message = "Please authenticate your self";
+			$message_type = 0;
 			$return_form = 1;
 		}
-		$data = "";
+		/* What type of message? */
+		switch($message_type) {
+			case 0:
+				$type = "info";
+				break;
+			case 1:
+				$type = "error";
+				break;
+			case 2:
+				$type = "success";
+				break;
+		}
+		/* Combine Data */
+		$data = '<div class="notice ' . $type . '">' . $message . '</div>';
 		/* We need the login form? */
 		if($return_form == 1) {
 			$data .= $form;
 		}
 		/* Return data */
-		return $notice->report() . $data;
+		return $data;
 	}
-	/*
-	 * LoggedIn
-	 *
-	 * Check if the user is logged-in
-	 * Check for session and/or cookie is set then reference it
-	 * in the database to see if it is valid if so allow the
-	 * user to login
-	 */
+
+	/* Is the user Logged In? */
 	public function LoggedIn() {
-		global $database;
-		/* Is a SESSION set? */
-		if(isset($_SESSION['member_valid']) && $_SESSION['member_valid']) 
-		{
-			/* Return true */
-			$status = true;
-
-		/* Is a COOKIE set? */
-		} 
-
-		elseif(isset($_COOKIE['remember_me_id']) && isset($_COOKIE['remember_me_hash'])) 
-		{
-			/* If so, find the equivilent in the db */
-			$user = $database->query('SELECT id, hash FROM users_logged WHERE id = :id', array(':id' => $_COOKIE['remember_me_id']), 'FETCH_OBJ');
-			/* Does the record exist? */
-			if($database->statement->rowCount() >= '1') {
-				/* Do the hashes match? */
-				if($user->hash == $_COOKIE['remember_me_hash']) {
-					/* If so Create a new cookie and mysql record */
-					$this->createNewCookie($user->id);
-					/* Return true */
-					$status = true;
-					/* If correct recreate session */
-					session_regenerate_id();
-					$_SESSION['member_id'] = $user->id;
-					$_SESSION['member_valid'] = 1;
-				} else {
-					/* Return false */
-					$status = false;
-				}
-			}
-		} 
-
-		else 
-		{
-			/* Return false */
-			$status = false;
-		}
-		/* Does the user need to login? */
-		if($status != true) {
-
-			/* Redirect Cookie */
-			setcookie("redirect", $this->currentPage(), time() + 31536000);  /* expire in 1 year */
-			/* Go to Login */
-			header("Location: member.php?action=login");
-		}
-	}
-	
-	/*
-	 * sessionIsSet
-	 *
-	 * Checks and sees if the session is set
-	 * Similar to LoggedIn however it does not
-	 * rediect the user
-	 */
-	public function sessionIsSet() {
 		global $database;
 		/* Is a SESSION set? */
 		if(isset($_SESSION['member_valid']) && $_SESSION['member_valid']) {
 			/* Return true */
 			$status = true;
+
+			/* Check if user needs account reset */
+			$database->query('SELECT reset FROM users WHERE id = :id', array(':id' => $_SESSION['member_id']));
+			$user = $database->statement->fetch(PDO::FETCH_OBJ);
+			/* Is a password Reset needed? */
+			if($user->reset == 1) {
+				$reset = true;
+			} else {
+				$reset = false;
+			}
 		/* Is a COOKIE set? */
 		} elseif(isset($_COOKIE['remember_me_id']) && isset($_COOKIE['remember_me_hash'])) {
 			/* If so, find the equivilent in the db */
-			$user = $database->query('SELECT id, hash FROM users_logged WHERE id = :id', array(':id' => $_COOKIE['remember_me_id']), 'FETCH_OBJ');
+			$database->query('SELECT id, hash FROM users_logged WHERE id = :id', array(':id' => $_COOKIE['remember_me_id']));
 			/* Does the record exist? */
-			if($database->statement->rowCount() >= '1') {
+			if($database->count() >= '1') {
+				/* If so load the data */
+				$user = $database->statement->fetch(PDO::FETCH_OBJ);
 				/* Do the hashes match? */
 				if($user->hash == $_COOKIE['remember_me_hash']) {
 					/* If so Create a new cookie and mysql record */
 					$this->createNewCookie($user->id);
 					/* Return true */
 					$status = true;
-					/* If correct recreate session */
-					session_regenerate_id();
-					$_SESSION['member_id'] = $user->id;
-					$_SESSION['member_valid'] = 1;
+
+					/* Check if user needs account reset */
+					$database->query('SELECT reset FROM users WHERE id = :id', array(':id' => $_COOKIE['remember_me_id']));
+					$user = $database->statement->fetch(PDO::FETCH_OBJ);
+					/* Is a password Reset needed? */
+					if($user->reset == 1) {
+						$reset = true;
+					} else {
+						$reset = false;
+					}
+
 				} else {
 					/* Return false */
 					$status = false;
+					$reset = false;
 				}
 			}
 		} else {
 			/* Return false */
 			$status = false;
+			$reset = false;
 		}
-		/* Is Session Set */
-		return $status;
+
+		/* */
+		if($status != true) {
+			header("Location: member.php?action=login");
+		} else {
+			if($reset == true && basename($_SERVER["REQUEST_URI"]) != "member.php?action=reset-password") {
+				header("Location: member.php?action=reset-password");
+			}
+		}
 	}
-	
-	/*
-	 * Logout
-	 *
-	 * Resets Session and destroyes it,
-	 * deletes any cookies and redirects to index
-	 */
+
+	/* Logout */
 	public function logout() {
 		/* Log */
 		if(isset($_SESSION['member_id'])) {
@@ -371,45 +285,12 @@ class member {
 		/* Redirect */
 		header('Refresh: 2; url=index.php');
 	}
-	
-	/*
-	 * clearSession
-	 *
-	 * Resets Session and destroyes it,
-	 * deletes any cookies
-	 */
-	public function clearSession() {
-		/* Log */
-		if(isset($_SESSION['member_id'])) {
-			$user_id = $_SESSION['member_id'];
-		} else {
-			$user_id = $_COOKIE['remember_me_id'];
-		}
-		$this->userLogger($user_id, 1);
-		/* Clear the SESSION */
-		$_SESSION = array();
-		/* Destroy the SESSION */
-		session_unset();
-		session_destroy();
-		/* Delete all old cookies and user_logged */
-		if(isset($_COOKIE['remember_me_id'])) {
-			$this->deleteCookie($_COOKIE['remember_me_id']);
-		}
-	}
-	
-	/*
-	 * createNewCookie
-	 *
-	 * If the remember me feature is enabled and the
-	 * user has selected it create a cookie for them.
-	 * Log it in the database
-	 *
-	 * @param string $id The users id
-	 */
+
+	/* Is the user Logged In? */
 	public function createNewCookie($id) {
 		global $database;
 		/* User Rember me feature? */
-		if(Config::read('remember') == true) {
+		if($this->remember == true) {
 			/* Gen new Hash */
 			$hash = $this->genHash($this->genSalt(), $_SERVER['REMOTE_ADDR']);
 			/* Set Cookies */
@@ -421,18 +302,12 @@ class member {
 			$database->query('INSERT INTO users_logged(id, hash) VALUES(:id, :hash)', array(':id' => $id, ':hash' => $hash));
 		}
 	}
-	
-	/*
-	 * deleteCookie
-	 *
-	 * Delete the users cookie
-	 *
-	 * @param string $id The users id
-	 */
+
+	/* Delete Cookies? */
 	public function deleteCookie($id) {
 		global $database;
 		/* User Rember me feature? */
-		if(Config::read('remember') == true) {
+		if($this->remember == true) {
 			/* Destroy Cookies */
 			setcookie("remember_me_id", "", time() - 31536000);  /* expire in 1 year */
 			setcookie("remember_me_hash", "", time() - 31536000);  /* expire in 1 year */
@@ -440,18 +315,8 @@ class member {
 			$database->query('DELETE FROM users_logged WHERE id = :id', array(':id' => $id));
 		}
 	}
-	
-	/*
-	 * userLogger
-	 *
-	 * Logs users activity,
-	 * Nothing personal.... just login times, logout times,
-	 * when recover passwords have been activated
-	 * All for security
-	 *
-	 * @param string $userid The users id
-	 * @param string $action What action is happening and needs logging
-	 */
+
+	/* Logger */
 	public function userLogger($userid, $action) {
 		global $database;
 		/* What type of action? */
@@ -465,14 +330,8 @@ class member {
 			case 2:
 				$action = "Recover Password";
 				break;
-			case 3:
+			case 2:
 				$action = "Reset Password";
-				break;
-			case 4:
-				$action = "Reset E-Mail";
-				break;
-			case 5:
-				$action = "Account Delete";
 				break;
 		}
 		/* Get User's IP */
@@ -481,40 +340,10 @@ class member {
 		$timestamp = date("Y-m-d H:i:s", time());
 		$database->query('INSERT INTO users_logs(userid, action, time, ip) VALUES(:userid, :action, :time, :ip)', array(':userid' => $userid, ':action' => $action, ':time' => $timestamp, ':ip' => $ip));
 	}
-	
-	/*
-	 * Member Data
-	 *
-	 * Loads all the member data
-	 */
-	public function data() {
-		global $database;
-		if(isset($_SESSION['member_id'])) {
-			$user_id = $_SESSION['member_id'];
-		} elseif(isset($_COOKIE['remember_me_id'])) {
-			$user_id = $_COOKIE['remember_me_id'];
-		} else {
-			$user_id = null;
-		}
-		if(!isset($user_id)) {
-			$notice = new notice;
-			$notice->add('error', 'Could not retrive user data because no user is logged in!');
-			return $notice->report();
-		} else {
-			$user = $database->query('SELECT id, username, email, date FROM users WHERE id = :id', array(':id' => $user_id), 'FETCH_OBJ');
-			return $user;
-		}
-	}
-	
-	/*
-	 * Register
-	 *
-	 * This function allows user to register
-	 */
+
+	/* Register */
 	public function register() {
 		global $database;
-		/* Create new instance of notice class */
-		$notice = new notice;
 		/* Set Message Array */
 		$message = array();
 		/* Check if Login is set */
@@ -527,38 +356,39 @@ class member {
 				if($length >= 5 && $length <= 25) {
 					/* Is the username Alphanumeric? */
 					if(preg_match('/[^a-zA-Z0-9_]/', $check_username)) {
-						$notice->add('error', 'Please enter a valid alphanumeric username');
+						$error[] = "Please enter a valid alphanumeric username";
 						$username = null;
 					} else {
 						$database->query('SELECT id FROM users WHERE username = :username', array(':username' => $check_username));
 						/* Check if user exist in database */
-						if($database->statement->rowCount() == 0) {
+						if($database->count() == 0) {
 							/* Require use to validate account */
-							if(Config::read('email_verification') === true) {
+							if($this->email_verification == true) {
 								/* Check if user exist in inactive database */
-								$user = $database->query('SELECT date FROM users_inactive WHERE username = :username', array(':username' => $check_username), 'FETCH_OBJ');
+								$database->query('SELECT date FROM users_inactive WHERE username = :username', array(':username' => $check_username));
 								/* If user incative is older than 24 hours */
-								if($database->statement->rowCount() == 0 or time() >= strtotime($user->date) + 86400) {
+								$user = $database->statement->fetch(PDO::FETCH_OBJ);
+								if($database->count() == 0 or time() >= strtotime($user->date) + 86400) {
 									/* If user incative is older than 24 hours */
 									$username = $_POST['username'];
 								} else {
-									$notice->add('error', 'Username already in use');
+									$error[] = "Username already in use";
 									$username = $check_username;
 								}
 							} else {
 								$username = $_POST['username'];
 							}
 						} else {
-							$notice->add('error', 'Username already in use');
+							$error[] = "Username already in use";
 							$username = $check_username;
 						}
 					}
 				} else {
-					$notice->add('error', 'Please enter a username between 5 to 25 characters');
+					$error[] = "Please enter a username between 5 to 25 characters";
 					$username = $check_username;
 				}
 			} else {
-				$notice->add('error', 'Please enter a username');
+				$error[] = "Please enter a username";
 				$username = null;
 			}
 			/* Check Password */
@@ -570,13 +400,13 @@ class member {
 					if($length >= 8) {
 						$password = $_POST['password'];
 					} else {
-						$notice->add('error', 'Passwords must be atleast than 8 characters');
+						$error[] = "Passwords must be atleast than 8 characters";
 					}
 				} else {
-					$notice->add('error', 'Passwords must match');
+					$error[] = "Passwords must match";
 				}
 			} else {
-				$notice->add('error', 'Please enter a password');
+				$error[] = "Please enter a password";
 			}
 			/* Check E-Mail */
 			if(!empty($_POST['email'])) {
@@ -589,17 +419,18 @@ class member {
 					if(filter_var($check_email, FILTER_VALIDATE_EMAIL) == true) {
 						$database->query('SELECT id FROM users WHERE email = :email', array(':email' => $check_email));
 						/* Check if user exist with email */
-						if($database->statement->rowCount() == 0) {
+						if($database->count() == 0) {
 							/* Require use to validate account */
-							if(Config::read('email_verification') === true) {
+							if($this->email_verification == true) {
 								/* Check if user exist with email in inactive */
-								$user = $database->query('SELECT date FROM users_inactive WHERE email = :email', array(':email' => $check_email), 'FETCH_OBJ');
+								$database->query('SELECT date FROM users_inactive WHERE email = :email', array(':email' => $check_email));
 								/* If user incative is older than 24 hours */
-								if($database->statement->rowCount() == 0 or time() >= strtotime($user->date) + 86400) {
+								$user = $database->statement->fetch(PDO::FETCH_OBJ);
+								if($database->count() == 0 or time() >= strtotime($user->date) + 86400) {
 									$email = $check_email;
 									$email_again = $check_email_again;
 								} else {
-									$notice->add('error', 'E-Mail already in use');
+									$error[] = "E-Mail already in use";
 									$email = null;
 									$email_again = null;
 								}
@@ -608,98 +439,101 @@ class member {
 								$email_again = $check_email_again;
 							}
 						} else {
-							$notice->add('error', 'E-Mail already in use');
+							$error[] = "E-Mail already in use";
 							$email = null;
 							$email_again = null;
 						}
 					} else {
-						$notice->add('error', 'Invalid E-Mail');
+						$error[] = "Invalid E-Mail";
 						$email = $check_email;
 						$email_again = $check_email_again;
 					}
 				} else {
-					$notice->add('error', '"E-Mails must match');
+					$error[] = "E-Mails must match";
 					$email = $check_email;
 					$email_again = $check_email_again;
 				}
 			} else {
-				$notice->add('error', 'Please enter an E-Mail');
+				$error[] = "Please enter an E-Mail";
 				$email = null;
 				$email_again = null;
 			}
-			
+
 			/* Captcha? */
-			if(Config::read('captcha') === true) {
+			if($this->captcha == true) {
 				/* Check E-Mail */
 				if(!empty($_POST['captcha'])) {
 					if($_POST['captcha'] != $_SESSION['captcha']) {
-						$notice->add('error', 'Invalid Captcha');
+						$error[] = "Invalid Captcha";
 					}
 				} else {
-					$notice->add('error', 'Please fill in the Captcha');
+					$error[] = "Please fill in the Captcha";
 				}
 			}
+
 			/* Is both Username and Password set? */
-			if($notice->errorsExist() == false) {
-				/* User is really making an account, flush any current users */
-				$this->clearSession();
-				/* Start Mailer Class */
-				$mailer = new mailer(Config::read('email_master'));
+			if(!isset($error)) {
 				$return_form = 0;
 				/* Final Format */
 				$password = $this->genHash($this->genSalt(), $password);
-				/* Set Template Path */
-				$template_path = 'assets/email_templates/' . Config::read('email_template') . '.html';
 				/* Send the user a welcome E-Mail */
-				if(Config::read('email_welcome') === true) {
+				if($this->email_welcome == true) {
 					/* Send the user an E-Mail */
 					/* Can we send a user an E-Mail? */
-					if(Config::read('email_master') != null) {
-						/* Email Info */
-						$subject = 'Welcome ' . $username . '!';
-						$content = 'Hi ' . $username . ',<br />Thanks for signing-up!<br /><br /><i>-Admin</i>';
-						/* Mail it! */
-						$mailer->mail($email, $subject, $content);
-						
+					if(function_exists('mail') && $this->email_master != null) {
+						$subject = "Thank you for creating an account, " . $username;
+						$body_content = "Hi " . $username . ",<br />Thanks for signing-up!<br /><br /><i>-Admin</i>";
+						/* E-Mail body */
+						$body = '<html lang="en"><body style="margin: 0; padding: 0; width: 100% !important;" bgcolor="#eeeeee"><table bgcolor="#eeeeee" cellpadding="0" cellspacing="0" border="0" align="center" width="100%" topmargin="0"><tr><td align="center" style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="padding: 20px 0;"><tr><td width="600" style="font-size: 0px;">&nbsp;</td></tr></table><table width="600" cellspacing="0" cellpadding="0" border="0" align="center" class="header" style="border-bottom: 1px solid #eeeeee; font-family: Helvetica, Arial, sans-serif; background:#ffffff;"><tbody><tr><td width="20" style="font-size: 0px;">&nbsp;</td><td width="580" align="left" style="padding: 5px 0 10px;"><h1 style="color: #444444; font: bold 32px Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 40px; border: none;">Your accound has been created</h1></td></tr></tbody></table></td></tr><tr><td align="center" style="margin: 0; padding: 0;"><table align="center" border="0" style="background-color:#ffffff;" width="600" height="100" cellpadding="3" cellspacing="3"><tr><td style="color: #222222; font: normal 16px Helvetica, Arial, sans-serif; margin: 0; padding: 10px; line-height: 18px;">' . $body_content . '</td></tr></table></td></tr><tr><td align="center" style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="padding: 20px 0;"><tr><td width="600" style="font-size: 0px;">&nbsp;</td></tr></table></td></tr></table></body></html>';
+						/* Headers */
+						$headers = "From: " . strip_tags($this->email_master) . "\r\n";
+						$headers .= "Reply-To: ". strip_tags($this->email_master) . "\r\n";
+						$headers .= "MIME-Version: 1.0\r\n";
+						$headers .= "Content-Type: text/html; charset=ISO-8859-1\r\n";
+						/* Send it */
+						mail($email, $subject, $body, $headers);
 					}
 				}
 				/* Require use to validate account */
-				if(Config::read('email_verification') === true) {
+				if($this->email_verification == true) {
 					/* Send the user an E-Mail */
 					/* Can we send a user an E-Mail? */
-					if(function_exists('mail')) {
-						if(Config::read('email_master') != null) {
-							$verCode = md5(uniqid(rand(), true) . md5(uniqid(rand(), true)));
-							/* Email Info */
-							$subject = 'Thank you for creating an account, ' . $username;
-							$content = 'Hi ' . $username . ',<br />Thanks for signing-up!<br />To activate your account please click the link below, or copy past it into the address bar of your web browser<hr /><a href="' . $this->currentPath() . 'member.php?action=verification&vercode=' . $verCode . '">' . $this->currentPath() . 'member.php?action=verification&vercode=' . $verCode . '</a><br /><br /><i>-Admin</i>';
-							/* Mail it! */
-							if($mailer->mail($email, $subject, $content) == true) {
-								/* Insert Data */
-								$date = date("Y-m-d H:i:s", time());
-								$database->query('INSERT INTO users_inactive(verCode, username, password, email, date) VALUES (:vercode, :username, :password, :email, :date)', array(':vercode' => $verCode, ':username' => $username, 'password' => $password, 'email' => $email, 'date' => $date));
-								$notice->add('info', 'Please check your e-mail to activate your account');
-								/* Redirect */
-								echo '<meta http-equiv="refresh" content="2;url=index.php" />';
-							} else {
-								$notice->add('error', 'Could not send e-mail!<br />Please contact the site admin.');
-							}
+					if(function_exists('mail') && $this->email_master != null) {
+						$verCode = md5(uniqid(rand(), true) . md5(uniqid(rand(), true)));
+						$subject = "Thank you for creating an account, " . $username;
+						$body_content = 'Hi ' . $username . ',<br />Thanks for signing-up!<br />To activate your account please click the link below, or copy past it into the address bar of your web browser<hr /><a href="' . $this->currentPath() . 'member.php?action=verification&vercode=' . $verCode . '">' . $this->currentPath() . 'member.php?action=verification&vercode=' . $verCode . '</a><br /><br /><i>-Admin</i>';
+						/* E-Mail body */
+						$body = '<html lang="en"><body style="margin: 0; padding: 0; width: 100% !important;" bgcolor="#eeeeee"><table bgcolor="#eeeeee" cellpadding="0" cellspacing="0" border="0" align="center" width="100%" topmargin="0"><tr><td align="center" style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="padding: 20px 0;"><tr><td width="600" style="font-size: 0px;">&nbsp;</td></tr></table><table width="600" cellspacing="0" cellpadding="0" border="0" align="center" class="header" style="border-bottom: 1px solid #eeeeee; font-family: Helvetica, Arial, sans-serif; background:#ffffff;"><tbody><tr><td width="20" style="font-size: 0px;">&nbsp;</td><td width="580" align="left" style="padding: 5px 0 10px;"><h1 style="color: #444444; font: bold 32px Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 40px; border: none;">Your accound has been created</h1></td></tr></tbody></table></td></tr><tr><td align="center" style="margin: 0; padding: 0;"><table align="center" border="0" style="background-color:#ffffff;" width="600" height="100" cellpadding="3" cellspacing="3"><tr><td style="color: #222222; font: normal 16px Helvetica, Arial, sans-serif; margin: 0; padding: 10px; line-height: 18px;">' . $body_content . '</td></tr></table></td></tr><tr><td align="center" style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="padding: 20px 0;"><tr><td width="600" style="font-size: 0px;">&nbsp;</td></tr></table></td></tr></table></body></html>';
+						/* Headers */
+						$headers = "From: " . strip_tags($this->email_master) . "\r\n";
+						$headers .= "Reply-To: ". strip_tags($this->email_master) . "\r\n";
+						$headers .= "MIME-Version: 1.0\r\n";
+						$headers .= "Content-Type: text/html; charset=ISO-8859-1\r\n";
+						/* Send it */
+						if(mail($email, $subject, $body, $headers)) {
+							/* Insert Data */
+							$date = date("Y-m-d H:i:s", time());
+							$database->query('INSERT INTO users_inactive(verCode, username, password, email, date) VALUES (?, ?, ?, ?, ?)', array($verCode, $username, $password, $email, $date));
+							$success[] = "You account has been created!";
+							$info[] = "Please check your e-mail to activate your account";
+							/* Redirect */
+							echo '<meta http-equiv="refresh" content="2;url=index.php" />';
 						} else {
-							$notice->add('error', 'The admin has not set a master email!<br />Please contact the site admin and tell him to set one.');
+							$error[] = "Could not send e-mail!<br />Please contact the site admin.";
 						}
 					} else {
-						$notice->add('error', 'It seems this server cannot send e-mails!<br />Please contact the site admin.');
+						$error[] = "It seems this server cannot send e-mails!<br />Could not send e-mail!<br />Please contact the site admin.";
 					}
 				} else {
 					/* Insert Data */
 					$date = date("Y-m-d", time());
-					$database->query('INSERT INTO users(username, password, email, date) VALUES (:username, :password, :email, :date)', array(':username' => $username, 'password' => $password, 'email' => $email, 'date' => $date));
-					$notice->add('success', 'You account has been created!');
+					$database->query('INSERT INTO users(username, password, email, date) VALUES (?, ?, ?, ?)', array($username, $password, $email, $date));
+					$success[] = "You account has been created!";
 					/* Redirect */
 					echo '<meta http-equiv="refresh" content="2;url=index.php" />';
 				}
 			} else {
-				if(Config::read('captcha') === true) {
+				if($this->captcha == true) {
 					/* If an error recreate captcha */
 					$this->randomString();
 				}
@@ -707,19 +541,19 @@ class member {
 			}
 		} else {
 			/* Report Status */
-			$notice->add('info', 'Please fill in all the information');
+			$info[] = "Please fill in all the information";
 			$return_form = 1;
 			$username = null;
 			$email = null;
 			$email_again = null;
-			if(Config::read('captcha') === true) {
+			if($this->captcha == true) {
 					/* If an error recreate captcha */
 					$this->randomString();
 				}
 		}
 		/* Register Form */
 		/* Captcha? */
-		if(Config::read('captcha') === true) {
+		if($this->captcha == true) {
 			$captcha_input = '
 <label>
 		<span>Captcha</span>
@@ -732,7 +566,7 @@ class member {
 		} else {
 			$captcha_input = null;
 		}
-		
+
 		$form = '
 <form name="register" action="' . $this->currentPage() . '" method="post">
 	<label>
@@ -761,19 +595,33 @@ class member {
 		';
 		/* Combine Data */
 		$data = "";
+		/* Report any Info */
+		if(isset($info)) {
+			foreach($info as $message) {
+				$data .= '<div class="notice info">' . $message . '</div>';
+			}
+		}
+		/* Report any Errors */
+		if(isset($error)) {
+			foreach($error as $message) {
+				$data .= '<div class="notice error">' . $message . '</div>';
+			}
+		}
+		/* Report any Success */
+		if(isset($success)) {
+			foreach($success as $message) {
+				$data .= '<div class="notice success">' . $message . '</div>';
+			}
+		}
 		/* Do we need the login form? */
 		if($return_form == 1) {
 			$data .= $form;
 		}
 		/* Return data */
-		return $notice->report() . $data;
+		return $data;
 	}
-	
-	/*
-	 * Random String
-	 * 
-	 * Creates a random string of A-Z0-9
-	 */
+
+	/* Random String */
 	public function randomString() {
 		$chars = '1234567890AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz';
 		$string = "";
@@ -783,141 +631,221 @@ class member {
 		$_SESSION['captcha'] = $string;
 		return $_SESSION['captcha'];
 	}
-	
-	/*
-	 * Recover Password
-	 * 
-	 * Checks and sees if a verCode is present and that a user is try to reover a password, otherwise
-	 * Lets the user Recover their password using e-mail
-	 */
-	 public function recoverPassword() {
+
+	/* Recover Password */
+	public function recoverPassword() {
 		global $database;
-		/* Create new instance of notice class */
-		$notice = new notice;
-		/* Is a user trying to recover a password via e-mail? */
-		if(isset($_GET['vercode'])) {
-			$data = "";
-			/* Get info on verCode */
-			$recover = $database->query('SELECT user, verCode, requestTime FROM users_recover WHERE verCode = :verCode', array(':verCode' => $_GET['vercode']), 'FETCH_OBJ');
-			/* Does an active record exist? */
-			if($database->statement->rowCount() >= '1') {
-				/* Is the request older than 24 hours? */
-				if(time() - strtotime($recover->requestTime) > 60*60*24) {
-					$notice->add('error', 'This recover request is older than 24 hours, please request a new password for recovery');
-				} else {
-					$data = $this->changePassword($recover->user);
-				}
-			} else {
-				$notice->add('error', 'An active record does not exist for the recover of this email');
-			}
-		/* If no; present form */
-		} else {
-			/* Recover Password Form */
-			$form = '
+		/* Recover Password Form */
+		$form = '
 <form name="recover" action="' . $this->currentPage() . '" method="post" class="group">
 	<input type="text" name="email" />
 	<input name="recover" type="submit" value="Recover" />
 </form>
-			';
-			if(isset($_POST['recover'])) {
+		';
+		if(isset($_POST['recover'])) {
+			$database->query('SELECT username, email FROM users WHERE email = :email', array(':email' => $_POST['email']));
+			/* Check if user exist */
+			if($database->count() >= '1') {
 				/* Get the users info */
-				$user = $database->query('SELECT id, username, email FROM users WHERE email = :email', array(':email' => $_POST['email']), 'FETCH_OBJ');
-				/* Check if user exist */
-				if($database->statement->rowCount() >= '1') {
-					/* Set Template Path */
-					$template_path = 'assets/email_templates/' . Config::read('email_template') . '.html';
-					/* Can we send a user an E-Mail? */
-					if(function_exists('mail') && Config::read('email_master') != null) {
-						$verCode = md5(uniqid(rand(), true) . md5(uniqid(rand(), true)));
-						/* Start Mailer Class */
-						$mailer = new mailer(Config::read('email_master'));
-						/* Email Info */
-						$subject = 'Password change Request';
-						$content = 'Hi ' . $user->username . ',<br />We have a revived a request for a password change. Please click the link below to change your password:<br /><br /><a href="' . $this->currentPath() . 'member.php?action=recover-password&vercode=' . $verCode . '">' . $this->currentPath() . 'member.php?action=recover-password&vercode=' . $verCode . '</a><br /><br />If the link does not work when you click it, copy and paste the link directly into your browser. If you did not request a password change ignore this message.<br /><br />For security reason this link is only active for 24 hours upon request.<br /><br /><i>-Admin</i>';
-						/* Mail it! */
-						if($mailer->mail($user->email, $subject, $content) == true) {
-							/* Upadte password only if you can mail them it! */
-							$requestTime = date('Y-m-d H:i:s');
-							$database->query('INSERT INTO users_recover(user, verCode, requestTime) VALUES (:user, :vercode, :requestTime)', array(':user' => $user->id, ':vercode' => $verCode, ':requestTime' => $requestTime));
-							$this->userLogger($user->id, 2);
-							$notice->add('info', 'Please check your e-mail for further instructions.');
-							$return_form = 0;
-							/* Redirect */
-							echo '<meta http-equiv="refresh" content="2;url=index.php" />';
-						} else {
-							$notice->add('error', 'Could not send e-mail!<br />Contact the site admin.');
-							$return_form = 0;
-						}
-					} else {
-						$notice->add('error', 'Could not send e-mail!<br />Contact the site admin.');
+				$user = $database->statement->fetch(PDO::FETCH_OBJ);
+				/* Create a random password */
+				$chars = '1234567890AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz!@#$%^&*';
+				$temp_password = "";
+				for($i = 0; $i < 10; $i++) {
+					$temp_password .= ($i%2) ? $chars[mt_rand(10, 23)] : $chars[mt_rand(0, 18)];
+				}
+				/* Can we send a user an E-Mail? */
+				if(function_exists('mail') && $this->email_master != null) {
+					/* E-Mail */
+					$subject = "You requested a password reset";
+					$body_content = "Hi " . $user->username . ",<br />Your password has been temporarily set to <b>" . $temp_password . "</b>.<br />Please change your password once your are logged in.<br /><br /><i>-Admin</i>";
+					$body = '<html lang="en"><body style="margin: 0; padding: 0; width: 100% !important;" bgcolor="#eeeeee"><table bgcolor="#eeeeee" cellpadding="0" cellspacing="0" border="0" align="center" width="100%" topmargin="0"><tr><td align="center" style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="padding: 20px 0;"><tr><td width="600" style="font-size: 0px;">&nbsp;</td></tr></table><table width="600" cellspacing="0" cellpadding="0" border="0" align="center" class="header" style="border-bottom: 1px solid #eeeeee; font-family: Helvetica, Arial, sans-serif; background:#ffffff;"><tbody><tr><td width="20" style="font-size: 0px;">&nbsp;</td><td width="580" align="left" style="padding: 5px 0 10px;"><h1 style="color: #444444; font: bold 32px Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 40px; border: none;">Your accound has been created</h1></td></tr></tbody></table></td></tr><tr><td align="center" style="margin: 0; padding: 0;"><table align="center" border="0" style="background-color:#ffffff;" width="600" height="100" cellpadding="3" cellspacing="3"><tr><td style="color: #222222; font: normal 16px Helvetica, Arial, sans-serif; margin: 0; padding: 10px; line-height: 18px;">' . $body_content . '</td></tr></table></td></tr><tr><td align="center" style="margin: 0; padding: 0;"><table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" style="padding: 20px 0;"><tr><td width="600" style="font-size: 0px;">&nbsp;</td></tr></table></td></tr></table></body></html>';
+					/* Headers */
+					$headers = "From: " . strip_tags($this->email_master) . "\r\n";
+					$headers .= "Reply-To: ". strip_tags($this->email_master) . "\r\n";
+					$headers .= "MIME-Version: 1.0\r\n";
+					$headers .= "Content-Type: text/html; charset=ISO-8859-1\r\n";
+					/* Send it */
+					if(mail($user->email, $subject, $body, $headers)) {
+						/* Upadte password only if you can mail them it! */
+						$database->query('UPDATE users SET password = :password WHERE email = :email', array(':password' => $this->genHash($this->genSalt(), $temp_password), ':email' => $_POST['email']));
+						$this->userLogger($user_id, 2);
+						$success[] = 'Please check your e-mail';
 						$return_form = 0;
+					} else {
+						$error[] = 'Could not send e-mail!<br />Contact the site admin.';
+					$return_form = 0;
 					}
 				} else {
-					$notice->add('error', 'Sorry that e-mail does not exist in our database');
-					$return_form = 1;
+					$error[] = 'Could not send e-mail!<br />Contact the site admin.';
+					$return_form = 0;
 				}
 			} else {
-				$notice->add('info', 'Please enter your e-mail');
+				$error[] = 'Sorry that e-mail does not exist in our database';
 				$return_form = 1;
 			}
-			$data = "";
-			/* We need the login form? */
-			if($return_form == 1) {
-				$data .= $form;
+		} else {
+			$info[] = 'Please enter your e-mail';
+			$return_form = 1;
+		}
+		$data = "";
+		/* Report any Info */
+		if(isset($info)) {
+			foreach($info as $message) {
+				$data .= '<div class="notice info">' . $message . '</div>';
 			}
 		}
-		return $notice->report() . $data;
+		/* Report any Errors */
+		if(isset($error)) {
+			foreach($error as $message) {
+				$data .= '<div class="notice error">' . $message . '</div>';
+			}
+		}
+		/* Report any Success */
+		if(isset($success)) {
+			foreach($success as $message) {
+				$data .= '<div class="notice success">' . $message . '</div>';
+			}
+		}
+		/* We need the login form? */
+		if($return_form == 1) {
+			$data .= $form;
+		}
+		return $data;
 	}
-	/*
-	 * Change Password
-	 *
-	 * Chnages the selected users password
-	 *
-	 * @param string $user The users ID
-	 */
-	public function changePassword($user = null) {
+
+	/* Reset Password */
+	public function resetPassword() {
 		global $database;
-		/* Create new instance of notice class */
-		$notice = new notice;
-		if(isset($user)) {
-			if(isset($_POST['change-password'])) {
-				/* Check Password */
-				if(!empty($_POST['password'])) {
-					/* Do passwords match? */
-					if(isset($_POST['password_again']) && $_POST['password_again'] == $_POST['password']) {
-						/* Is the password long enough? */
-						$length = strlen($_POST['password']);
-						if($length >= 8) {
-							$password = $_POST['password'];
-						} else {
-							$notice->add('error', 'Passwords must be atleast than 8 characters');
-						}
+		if(isset($_POST['reset-password'])) {
+			/* Check Password */
+			if(!empty($_POST['password'])) {
+				/* Do passwords match? */
+				if(isset($_POST['password_again']) && $_POST['password_again'] == $_POST['password']) {
+					/* Is the password long enough? */
+					$length = strlen($_POST['password']);
+					if($length >= 8) {
+						$password = $_POST['password'];
 					} else {
-						$notice->add('error', 'Passwords must match');
+						$error[] = "Passwords must be atleast than 8 characters";
 					}
 				} else {
-					$notice->add('error', 'Please enter a password');
-				}
-				if($notice->errorsExist() == false) {
-					$password = $this->genHash($this->genSalt(), $password);
-					$database->query('UPDATE users SET password = :password WHERE id = :id', array(':password' => $password, ':id' => $user));
-					$this->userLogger($user, 3);
-					/* Report Status */
-					$notice->add('success', 'Password has been updated!');
-					$return_form = 0;
-					/* Redirect */
-					echo '<meta http-equiv="refresh" content="2;url=index.php" />';
-				} else {
-					$return_form = 1;
+					$error[] = "Passwords must match";
 				}
 			} else {
+				$error[] = "Please enter a password";
+			}
+			if(!isset($error)) {
+				if(isset($_SESSION['member_valid'])) {
+					$id = $_SESSION['member_id'];
+				} else {
+					$id = $_COOKIE['remember_me_id'];
+				}
+				$password = $this->genHash($this->genSalt(), $password);
+				$database->query('UPDATE users SET password = :password, reset = 0 WHERE id = :id', array(':password' => $password, ':id' => $id));
+				$this->userLogger($user_id, 3);
 				/* Report Status */
-				$notice->add('info', 'Please choose a new password');
+				$success[] = "Password has been updated!";
+				$return_form = 0;
+				/* Redirect */
+				echo '<meta http-equiv="refresh" content="2;url=index.php" />';
+			} else {
 				$return_form = 1;
 			}
-			
-			/* Reset Password Form */
-			$form = '
+		} else {
+			/* Report Status */
+			$info[] = "Please choose a new password";
+			$return_form = 1;
+		}
+
+		/* Reset Password Form */
+		$form = '
+<form name="reset-password" action="' . $this->currentPage() . '" method="post">
+	<label>
+		<span>Password</span>
+		<input type="password" name="password" />
+	</label>
+	<label>
+		<span>Password Again</span>
+		<input type="password" name="password_again" />
+	</label>
+	<input name="reset-password" type="submit" value="Reset Password" />
+</form>
+		';
+		/* Combine Data */
+		$data = "";
+		/* Report any Info */
+		if(isset($info)) {
+			foreach($info as $message) {
+				$data .= '<div class="notice info">' . $message . '</div>';
+			}
+		}
+		/* Report any Errors */
+		if(isset($error)) {
+			foreach($error as $message) {
+				$data .= '<div class="notice error">' . $message . '</div>';
+			}
+		}
+		/* Report any Success */
+		if(isset($success)) {
+			foreach($success as $message) {
+				$data .= '<div class="notice success">' . $message . '</div>';
+			}
+		}
+		/* Do we need the login form? */
+		if($return_form == 1) {
+			$data .= $form;
+		}
+		/* Return data */
+		return $data;
+	}
+
+	/* Change Password */
+	public function changePassword() {
+		global $database;
+		if(isset($_POST['change-password'])) {
+			/* Check Password */
+			if(!empty($_POST['password'])) {
+				/* Do passwords match? */
+				if(isset($_POST['password_again']) && $_POST['password_again'] == $_POST['password']) {
+					/* Is the password long enough? */
+					$length = strlen($_POST['password']);
+					if($length >= 8) {
+						$password = $_POST['password'];
+					} else {
+						$error[] = "Passwords must be atleast than 8 characters";
+					}
+				} else {
+					$error[] = "Passwords must match";
+				}
+			} else {
+				$error[] = "Please enter a password";
+			}
+			if(!isset($error)) {
+				if(isset($_SESSION['member_valid'])) {
+					$id = $_SESSION['member_id'];
+				} else {
+					$id = $_COOKIE['remember_me_id'];
+				}
+				$password = $this->genHash($this->genSalt(), $password);
+				$database->query('UPDATE users SET password = :password WHERE id = :id', array(':password' => $password, ':id' => $id));
+				$this->userLogger($id, 3);
+				/* Report Status */
+				$success[] = "Password has been updated!";
+				$return_form = 0;
+				/* Redirect */
+				//echo '<meta http-equiv="refresh" content="2;url=index.php" />';
+			} else {
+				$return_form = 1;
+			}
+		} else {
+			/* Report Status */
+			$info[] = "Please choose a new password";
+			$return_form = 1;
+		}
+
+		/* Reset Password Form */
+		$form = '
 <form name="change-password" action="' . $this->currentPage() . '" method="post">
 	<label>
 		<span>New Password</span>
@@ -929,178 +857,75 @@ class member {
 	</label>
 	<input name="change-password" type="submit" value="Change Password" />
 </form>
-			';
-			/* Combine Data */
-			$data = "";
-			/* Do we need the login form? */
-			if($return_form == 1) {
-				$data .= $form;
+		';
+		/* Combine Data */
+		$data = "";
+		/* Report any Info */
+		if(isset($info)) {
+			foreach($info as $message) {
+				$data .= '<div class="notice info">' . $message . '</div>';
 			}
-		} else {
-			/* No User selected! */
-			$notice->add('error', 'No user selected!');
-			$data = "";
+		}
+		/* Report any Errors */
+		if(isset($error)) {
+			foreach($error as $message) {
+				$data .= '<div class="notice error">' . $message . '</div>';
+			}
+		}
+		/* Report any Success */
+		if(isset($success)) {
+			foreach($success as $message) {
+				$data .= '<div class="notice success">' . $message . '</div>';
+			}
+		}
+		/* Do we need the login form? */
+		if($return_form == 1) {
+			$data .= $form;
 		}
 		/* Return data */
-		return $notice->report() . $data;
+		return $data;
 	}
-	
-	/*
-	 * changeEmail
-	 *
-	 * Chnages the selected users email
-	 *
-	 * @param string $user The users ID
-	 */
-	public function changeEmail($user = null) {
-		global $database;
-		/* Create new instance of notice class */
-		$notice = new notice;
-		if(isset($user)) {
-			$userInfo = $database->query('SELECT email FROM users WHERE id = :id', array(':id' => $user), 'FETCH_OBJ');
-			$notice->add('info', 'Current E-Mail for this account is:<br />' . $userInfo->email);
-			if(isset($_POST['email'])) {
-				/* Set $email */
-				$email = strtolower($_POST['email']);
-				$email_again = strtolower($_POST['email_again']);
-				/* Check E-Mail */
-				if(!empty($email)) {
-					/* Do E-Mails match? */
-					if(isset($email_again) && $email_again == $email) {
-						/* Is the E-Mail really an E-Mail? */
-						if(filter_var($email, FILTER_VALIDATE_EMAIL) == true) {
-							$database->query('SELECT id FROM users WHERE email = :email', array(':email' => $email));
-							/* Check if user exist with email */
-							if($database->statement->rowCount() != 0) {
-								$notice->add('error', 'E-Mail already in use');
-							}
-						} else {
-							$notice->add('error', 'Invalid E-Mail');
-						}
-					} else {
-						$notice->add('error', 'E-Mails must match');
-					}
-				} else {
-					$notice->add('error', 'Please enter a E-Mail');
-				}
-				if($notice->errorsExist() == false) {
-					$database->query('UPDATE users SET email = :email WHERE id = :id', array(':email' => $email, ':id' => $user));
-					$this->userLogger($user, 4);
-					/* Report Status */
-					$notice->add('success', 'E-Mail has been updated!');
-					$return_form = 0;
-					/* Redirect */
-					echo '<meta http-equiv="refresh" content="2;url=index.php" />';
-				} else {
-					$return_form = 1;
-				}
-			} else {
-				/* Report Status */
-				$notice->add('info', 'Please choose a new E-Mail');
-				$return_form = 1;
-			}
-			
-			/* Reset Password Form */
-			$form = '
-<form name="change-email" action="' . $this->currentPage() . '" method="post">
-	<label>
-		<span>E-Mail</span>
-		<input type="text" name="email" />
-	</label>
-	<label>
-		<span>E-Mail Again</span>
-		<input type="text" name="email_again" />
-	</label>
-	<input name="change-email" type="submit" value="Change E-Mail" />
-</form>
-			';
-			/* Combine Data */
-			$data = "";
-			/* Do we need the login form? */
-			if($return_form == 1) {
-				$data .= $form;
-			}
-		} else {
-			/* No User selected! */
-			$notice->add('error', 'No user selected!');
-			$data = "";
-		}
-		/* Return data */
-		return $notice->report() . $data;
-	}
-	
-	/*
-	 * deleteAccount
-	 *
-	 * Delete user account
-	 *
-	 * @param string $user The users ID
-	 */
-	public function deleteAccount($user = null) {
-	global $database;
-		/* Create new instance of notice class */
-		$notice = new notice;
-		if(isset($user)) {
-			if(isset($_POST['delete_account'])) {
-				$database->query('DELETE FROM users WHERE id = :id', array(':id' => $user));
-				$this->userLogger($user, 5);
-				/* Report Status */
-				$notice->add('success', 'This accout has been delete!');
-				$return_form = 0;
-				/* Loguser out */
-				$this->logout();
-			} else {
-				/* Report Status */
-				$notice->add('info', 'Are you sure you wish to delete this account?');
-				$return_form = 1;
-			}
-			
-			/* Reset Password Form */
-			$form = '<form name="change-email" action="' . $this->currentPage() . '" method="post">
-	<input name="delete_account" type="submit" value="Delete Account" />
-</form>';
-			/* Combine Data */
-			$data = "";
-			/* Do we need the login form? */
-			if($return_form == 1) {
-				$data .= $form;
-			}
-		} else {
-			/* No User selected! */
-			$notice->add('error', 'No user selected!');
-			$data = "";
-		}
-		/* Return data */
-		return $notice->report() . $data;
-	}
-	
-	/*
-	 * Verification
-	 *
-	 * If email verification is set this handels those verifications
-	 */
+
+	/* E-Mail Verification */
 	public function verification() {
 		global $database;
-		/* Create new instance of notice class */
-		$notice = new notice;
 		if(isset($_GET['vercode'])) {
 			$verCode = $_GET['vercode'];
-			$user = $database->query('SELECT username, password, email FROM users_inactive WHERE verCode = :verCode', array(':verCode' => $verCode), 'FETCH_OBJ');
+			$database->query('SELECT username, password, email FROM users_inactive WHERE verCode = :verCode', array(':verCode' => $verCode));
+			$user = $database->statement->fetch(PDO::FETCH_OBJ);
 			/* Insert Data */
-			$database->query('INSERT INTO users(username, password, email, date) VALUES (:username, :password, :email, :date)', array(':username' => $user->username, ':password' => $user->password, ':email' => $user->email, ':date' => date('Y-m-d')));
+			$database->query('INSERT INTO users(username, password, email, date) VALUES (?, ?, ?, ?)', array($user->username, $user->password, $user->email, date('Y-m-d')));
 			/* Clear Inactive */
 			$database->query('DELETE FROM users_inactive WHERE verCode = :verCode', array(':verCode' => $verCode));
 			/* Message */
-			$notice->add('success', 'You account has been verified!');
+			$success[] = "You account has been verified!";
 			/* Redirect */
 			echo '<meta http-equiv="refresh" content="2;url=index.php" />';
 		} else {
-			$notice->add('info', 'No verCode (Verification Code)!');
+			$info[] = '<div class="notice info">No verCode (Verification Code)!</div>';
 		}
 		/* Combine Data */
 		$data = "";
+		/* Report any Info */
+		if(isset($info)) {
+			foreach($info as $message) {
+				$data .= '<div class="notice info">' . $message . '</div>';
+			}
+		}
+		/* Report any Errors */
+		if(isset($error)) {
+			foreach($error as $message) {
+				$data .= '<div class="notice error">' . $message . '</div>';
+			}
+		}
+		/* Report any Success */
+		if(isset($success)) {
+			foreach($success as $message) {
+				$data .= '<div class="notice success">' . $message . '</div>';
+			}
+		}
 		/* Return data */
-		return $notice->report() . $data;
+		return $data;
 	}
 }
 ?>
