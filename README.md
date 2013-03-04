@@ -49,6 +49,10 @@ Change Log
 =================================
 ----------------------------------------------------------------
 
+**Version 1.5 (March 4th, 2013)**
+
+* content class and display class added
+
 **Version 1.3.3 (June 2, 2012)**
 
 * Session now recreated upon login if user has set "Remember Me" feature
@@ -70,7 +74,7 @@ Change Log
 
 * Performance; Increased performance by only selected need columns from the db
 * Security; SESSION Hijacking Prevention (Thanks wide_load)
-* Security; Uses now MUST be logged in to see change password screen (before you could see it but needed the session id/valid so one could have used an existing session to reset your password, am sorry I missed this)
+* Security; Users now MUST be logged in to see change password screen (before you could see it but needed the session id/valid so one could have used an existing session to reset your password, am sorry I missed this)
 * Registration; Check if user exist in inactive db before approving new user
 * Registration; If inactive user is older than 24 hours replace user
 * Logs; New Logs on users recovering and resetting password
