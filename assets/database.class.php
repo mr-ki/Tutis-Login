@@ -1,52 +1,92 @@
 <?php
 /*
-Name:          CRUD Database Class
-Author:        FireDart
-License:       Creative Commons Attribution-ShareAlike 3.0 Unported License
-                - http://creativecommons.org/licenses/by-sa/3.0/
-*/
-/* Database Class */
+ * Database Class
+ * 
+ * Handles all the connections via PDO
+ */
 class database {
-	/* Set Properties */
-	/* Set Private Database info so only this class can connect to it */
-	private $hostname;
-	private $database;
-	private $username;
-	private $password;
-	/* Other Variables */
-	private $pdo;
-	/* Auto Load Database */
-	function __construct($hostname, $database, $username, $password) {
-		/* Set Private Database values */
-		$this->hostname = $hostname;
-		$this->port     = 3306;
-		$this->database = $database;
-		$this->username = $username;
-		$this->password = $password;
-		
-		/* Try to connect else catch the failure */
+	/*
+	 * @var $pdo A reference to the PDO instance;
+	 * 	Also used for connecions via PDO.
+	 */
+	public $pdo = null;
+	
+	/*
+	 * @var $statement Used to contain query for prepared statments;
+	 * 	Also used for value binding & execution
+	 */
+	public $statement = null;
+	
+	/*
+	 * Database Constructor
+	 * 
+	 * This method is used to create a new database object with a connection to a datbase
+	 */
+	public function __construct() {
+		/* Try the connections */
 		try {
-			$this->pdo = new PDO("mysql:host={$this->hostname};port={$this->port};dbname={$this->database}", $this->username, $this->password, array(PDO::ATTR_PERSISTENT => true));
+			/* Create a connections with the supplied values */
+			$this->pdo = new PDO("mysql:host=" . Config::read('hostname') . ";dbname=" . Config::read('database') . "", Config::read('username'), Config::read('password'), Config::read('drivers'));
 		} catch(PDOException $e) {
-			print "<b>Error - Connection Failed: </b>" . $e->getMessage() . "<br/>";
+			/* If any errors echo the out and kill the script */
+			print "<b>[DATABASE] Error - Connection Failed:</b> " . $e->getMessage() . "<br/>";
 			die();
 		}
 	}
 	
-	/* Build Query based on $query variable */
-	/* Example of Bind array(":id" => "1", ":soemthing" => "The value") */
-	public function query($query, $bind = null) {
-		global $pdo;
-		/* Prepare Statment */
+	/*
+	 * Database Query
+	 * 
+	 * This method is used to create a new database prepared query
+	 * 
+	 * @param string $query The prepared statement query to the database
+	 * @param array|string $bind All the variables to bind to the prepared statement
+	 * @return return the executed string
+	 */
+	public function query($query, $bind = null, $fetch = 'FETCH_ASSOC') {
+		/* Prepare the query statement */
 		$this->statement = $this->pdo->prepare($query);
-		/* Execute Query */
-		$this->statement->execute($bind);
-	}
-	
-	/* Return row Count */
-	public function count() {
-		/* Return Count */
-		$result = $this->statement->rowCount();
+		/* Bind each value supplied from $bind */
+		if($bind != null) {
+			foreach($bind as $select => $value) {
+				/* For each type of value give the appropriate param */
+				if(is_int($value)) {
+					$param = PDO::PARAM_INT; 
+				} elseif(is_bool($value)) {
+					$param = PDO::PARAM_BOOL;
+				} elseif(is_null($value)) {
+					$param = PDO::PARAM_NULL;
+				} elseif(is_string($value)) {
+					$param = PDO::PARAM_STR;
+				} else {
+					$param = FALSE;
+				}
+				/* Bind value */
+				if($param) {
+					$this->statement->bindValue($select, $value, $param);
+				}
+			}
+		}
+		/* Execute Query & check for any errors */
+		if(!$this->statement->execute()){
+			$result = array(
+				1 => 'false',
+				2 => '<b>[DATABASE] Error - Query:</b> There was an error in sql syntax',
+			);
+			return $result;
+		}
+		/* Return all content */
+		if($fetch == 'FETCH_ASSOC') {
+			$result = $this->statement->fetch(PDO::FETCH_ASSOC);
+		} elseif($fetch == 'FETCH_BOTH') {
+			$result = $this->statement->fetch(PDO::FETCH_BOTH);
+		} elseif($fetch == 'FETCH_LAZY') {
+			$result = $this->statement->fetch(PDO::FETCH_LAZY);
+		} elseif($fetch == 'FETCH_OBJ') {
+			$result = $this->statement->fetch(PDO::FETCH_OBJ);
+		} elseif($fetch == 'fetchAll') {
+			$result = $this->statement->fetchAll();
+		}
 		return $result;
 	}
 }

@@ -12,57 +12,43 @@ if(isset($_GET['action'])) {
 } else {
 	$action = null;
 }
+if(isset($_GET['subaction'])) {
+	$subaction = $_GET['subaction'];
+} else {
+	$subaction = null;
+}
 if($action == 'logout') {
 	echo $member->logout();
 	$title = 'Logging user out';
-	$content = '
-<div id="logout" class="group">
-	<div class="notice info">You are being logged out...</div>
-</div>';
-} elseif($action == 'change-password') {
+	$content = '<div class="notice info">You are being logged out...</div>';
+} elseif($action == 'settings') {
 	$member->LoggedIn();
-	$title = 'Chnage Password';
-	$content = '
-<div id="change-password" class="group">
-	<h1>Change Password</h1>
-	' . $member->changePassword() . '
-</div>';
+	$user = $member->data();
+	if($subaction == 'password') {
+		$title   = 'Change Password';
+		$content = $member->changePassword($user->id);
+	} elseif($subaction == 'email') {
+		$title   = 'Change E-Mail';
+		$content = $member->changeEmail($user->id);
+	} elseif($subaction == 'delete') {
+		$title   = 'Delete Account';
+		$content = $member->deleteAccount($user->id);
+	} else {
+		$title   = 'Settings';
+		$content = '<a href="member.php?action=settings&amp;subaction=password" class="button full">Change Password</a><a href="member.php?action=settings&amp;subaction=email" class="button full">Change E-Mail</a><a href="member.php?action=settings&amp;subaction=delete" class="button full">Delete Account</a>';
+	}
 } elseif($action == 'register') {
-	$title = 'Create an account';
-	$content = '
-<div id="register" class="group">
-	<h1>Create an account</h1>
-	' . $member->register() . '
-</div>';
+	$title   = 'Create an account';
+	$content = $member->register() . '<p class="options group"><a href="member.php?action=login">Already have an account?</a> &bull; <a href="member.php?action=recover-password">Recover Password</a></p>';
 } elseif($action == 'recover-password') {
-	$title = 'Recover your password';
-	$content = '
-<div id="recover-password" class="group">
-	<h1>Recover your password</h1>
-	' . $member->recoverPassword() . '
-</div>';
-} elseif($action == 'reset-password') {
-	$member->LoggedIn();
-	$title = 'Reset your password';
-	$content = '
-<div id="reset-password" class="group">
-	<h1>Reset your password</h1>
-	' . $member->resetPassword() . '
-</div>';
+	$title   = 'Recover your password';
+	$content = $member->recoverPassword() . '<p class="options group"><a href="member.php?action=login">Already have an account?</a></p>';
 } elseif($action == 'verification') {
-	$title = 'Your account has been verified';
-	$content = '
-<div id="verification" class="group">
-	<h1>Account Verification</h1>
-	' . $member->verification() . '
-</div>';
+	$title   = 'Your account has been verified';
+	$content = $member->verification() . '<p class="options group"><a href="member.php?action=login">Already have an account?</a></p>';
 } else {
-	$title = 'Please authenticate your self';
-	$content = '
-<div id="login" class="group">
-	<h1>Login</h1>
-	' . $member->login() . '
-</div>';
+	$title   = 'Login';
+	$content =  $member->login() . '<p class="options group"><a href="member.php?action=register">Register</a> &bull; <a href="member.php?action=recover-password">Recover Password</a></p>';
 }
 ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -73,6 +59,9 @@ if($action == 'logout') {
 	<link rel="stylesheet" type="text/css" href="assets/css/style.css" />
 </head>
 <body>
-<?php echo $content; ?>
+<div id="members" class="group">
+	<h1><?php echo $title; ?></h1>
+	<?php echo $content; ?>
+</div>
 </body>
 </html>
